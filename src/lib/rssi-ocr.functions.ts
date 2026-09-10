@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 
-type OcrResult = { rssi: number | null; raw: string };
+type OcrResult = { rssi: number | null; la: string | null; raw: string };
 
 /**
  * Reads a photo/frame of a TETRA radio display and extracts the RSSI value in dBm.
@@ -29,15 +29,16 @@ export const readRssiFromImage = createServerFn({ method: "POST" })
             role: "system",
             content:
               "Você lê o visor de um rádio TETRA em uma foto. Responda APENAS com JSON " +
-              '{"rssi": <número em dBm negativo ou null>}. ' +
+              '{"rssi": <número em dBm negativo ou null>, "la": <"LA 12" como string, apenas o número, ou null>}. ' +
               "O RSSI aparece como algo como -85 dBm, RSSI -85, ou uma escala/barras. " +
               "Se houver apenas barras de sinal, estime: 5 barras=-70, 4=-80, 3=-90, 2=-100, 1=-110. " +
-              "Se não conseguir determinar, use null. Nada de texto extra.",
+              'A ERB de serviço aparece como "LA XX" (location area). Em "la" devolva somente o número/código após LA. ' +
+              "Se não conseguir determinar algum campo, use null. Nada de texto extra.",
           },
           {
             role: "user",
             content: [
-              { type: "text", text: "Qual o RSSI mostrado neste visor?" },
+              { type: "text", text: "Qual o RSSI e a LA (ERB de serviço) mostrados neste visor?" },
               { type: "image_url", image_url: { url: data.image } },
             ],
           },
@@ -56,15 +57,21 @@ export const readRssiFromImage = createServerFn({ method: "POST" })
     const cleaned = raw.replace(/```json|```/g, "").trim();
 
     let rssi: number | null = null;
+    let la: string | null = null;
     try {
-      const parsed = JSON.parse(cleaned) as { rssi?: number | null };
+      const parsed = JSON.parse(cleaned) as { rssi?: number | null; la?: string | number | null };
       rssi = typeof parsed.rssi === "number" ? parsed.rssi : null;
+      if (parsed.la !== null && parsed.la !== undefined && `${parsed.la}`.trim() !== "") {
+        la = `${parsed.la}`.replace(/^\s*LA\s*/i, "").trim();
+      }
     } catch {
       const m = cleaned.match(/-?\d{2,3}/);
       rssi = m ? Number(m[0]) : null;
+      const l = cleaned.match(/LA\s*([A-Za-z0-9-]+)/i);
+      la = l ? l[1]! : null;
     }
     if (rssi !== null && rssi > 0) rssi = -rssi;
     if (rssi !== null && (rssi < -140 || rssi > -20)) rssi = null;
 
-    return { rssi, raw: cleaned };
+    return { rssi, la, raw: cleaned };
   });
