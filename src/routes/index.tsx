@@ -65,6 +65,7 @@ function DriveTest() {
   const [camOn, setCamOn] = useState(false);
   const [stepM, setStepM] = useState(50);
   const [manualRssi, setManualRssi] = useState("");
+  const [manualLa, setManualLa] = useState("");
   const [pos, setPos] = useState<GeolocationPosition | null>(null);
   const [distance, setDistance] = useState(0);
   const [status, setStatus] = useState("Pronto");
@@ -125,12 +126,14 @@ function DriveTest() {
       if (busyRef.current) return;
       busyRef.current = true;
       let rssi: number | null = null;
+      let la: string | null = manualLa.trim() || null;
       try {
         const frame = camOn ? grabFrame() : null;
         if (frame) {
           setStatus("Lendo visor do rádio...");
           const out = await ocr({ data: { image: frame } });
           rssi = out.rssi;
+          if (out.la) la = out.la;
           if (rssi === null) setStatus("Visor ilegível neste ponto");
         } else if (manualRssi.trim() !== "") {
           rssi = Number(manualRssi);
@@ -148,15 +151,20 @@ function DriveTest() {
         lat: p.coords.latitude,
         lon: p.coords.longitude,
         rssi,
+        la,
         accuracy: p.coords.accuracy ?? null,
         speedKmh: p.coords.speed != null ? p.coords.speed * 3.6 : null,
         source,
       };
       setReadings((prev) => [...prev, reading]);
       lastFixRef.current = { lat: reading.lat, lon: reading.lon };
-      setStatus(rssi === null ? "Ponto salvo sem nível" : `Ponto salvo: ${rssi} dBm`);
+      setStatus(
+        rssi === null
+          ? "Ponto salvo sem nível"
+          : `Ponto salvo: ${rssi} dBm${la ? ` · LA ${la}` : ""}`,
+      );
     },
-    [camOn, grabFrame, manualRssi, ocr],
+    [camOn, grabFrame, manualRssi, manualLa, ocr],
   );
 
   const start = useCallback(() => {
