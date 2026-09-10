@@ -4,6 +4,7 @@ export type Reading = {
   lat: number;
   lon: number;
   rssi: number | null;
+  la: string | null;
   accuracy: number | null;
   speedKmh: number | null;
   source: "auto" | "manual";
@@ -62,8 +63,8 @@ export function buildKml(readings: Reading[], name = "Levantamento TETRA"): stri
     .map((r, i) => {
       const b = bandFor(r.rssi);
       return `    <Placemark>
-      <name>${i + 1}: ${r.rssi === null ? "s/ leitura" : `${r.rssi} dBm`}</name>
-      <description><![CDATA[RSSI: ${r.rssi ?? "-"} dBm<br/>Qualidade: ${b.label}<br/>Hora: ${new Date(r.t).toLocaleString("pt-BR")}<br/>Lat/Lon: ${r.lat.toFixed(6)}, ${r.lon.toFixed(6)}<br/>Precisão GPS: ${r.accuracy?.toFixed(0) ?? "-"} m]]></description>
+      <name>${i + 1}: ${r.rssi === null ? "s/ leitura" : `${r.rssi} dBm`}${r.la ? ` (LA ${esc(r.la)})` : ""}</name>
+      <description><![CDATA[RSSI: ${r.rssi ?? "-"} dBm<br/>ERB de serviço (LA): ${r.la ?? "-"}<br/>Qualidade: ${b.label}<br/>Hora: ${new Date(r.t).toLocaleString("pt-BR")}<br/>Lat/Lon: ${r.lat.toFixed(6)}, ${r.lon.toFixed(6)}<br/>Precisão GPS: ${r.accuracy?.toFixed(0) ?? "-"} m]]></description>
       <styleUrl>#b${styleIdx(r)}</styleUrl>
       <Point><coordinates>${r.lon},${r.lat},0</coordinates></Point>
     </Placemark>`;
@@ -98,7 +99,8 @@ ${points}
 }
 
 export function buildCsv(readings: Reading[]): string {
-  const head = "indice,data_hora,latitude,longitude,rssi_dbm,qualidade,precisao_m,velocidade_kmh,origem";
+  const head =
+    "indice,data_hora,latitude,longitude,rssi_dbm,la_erb,qualidade,precisao_m,velocidade_kmh,origem";
   const rows = readings.map((r, i) =>
     [
       i + 1,
@@ -106,6 +108,7 @@ export function buildCsv(readings: Reading[]): string {
       r.lat.toFixed(6),
       r.lon.toFixed(6),
       r.rssi ?? "",
+      r.la ? `"${r.la.replace(/"/g, '""')}"` : "",
       bandFor(r.rssi).label,
       r.accuracy?.toFixed(0) ?? "",
       r.speedKmh?.toFixed(1) ?? "",
