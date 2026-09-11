@@ -10,6 +10,7 @@ import {
   Square,
   Trash2,
   Crosshair,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -25,6 +26,9 @@ import {
   buildKml,
   download,
   haversine,
+  shareFiles,
+  summaryText,
+  whatsappTextUrl,
   type Reading,
 } from "@/lib/rssi";
 
@@ -66,6 +70,7 @@ function DriveTest() {
   const [stepM, setStepM] = useState(50);
   const [manualRssi, setManualRssi] = useState("");
   const [manualLa, setManualLa] = useState("");
+  const [manualNei, setManualNei] = useState("");
   const [pos, setPos] = useState<GeolocationPosition | null>(null);
   const [distance, setDistance] = useState(0);
   const [status, setStatus] = useState("Pronto");
@@ -127,6 +132,8 @@ function DriveTest() {
       busyRef.current = true;
       let rssi: number | null = null;
       let la: string | null = manualLa.trim() || null;
+      let nei: number | null =
+        manualNei.trim() !== "" && Number.isFinite(Number(manualNei)) ? Number(manualNei) : null;
       try {
         const frame = camOn ? grabFrame() : null;
         if (frame) {
@@ -134,6 +141,7 @@ function DriveTest() {
           const out = await ocr({ data: { image: frame } });
           rssi = out.rssi;
           if (out.la) la = out.la;
+          if (out.nei !== null) nei = out.nei;
           if (rssi === null) setStatus("Visor ilegível neste ponto");
         } else if (manualRssi.trim() !== "") {
           rssi = Number(manualRssi);
@@ -152,6 +160,7 @@ function DriveTest() {
         lon: p.coords.longitude,
         rssi,
         la,
+        nei,
         accuracy: p.coords.accuracy ?? null,
         speedKmh: p.coords.speed != null ? p.coords.speed * 3.6 : null,
         source,
@@ -161,10 +170,10 @@ function DriveTest() {
       setStatus(
         rssi === null
           ? "Ponto salvo sem nível"
-          : `Ponto salvo: ${rssi} dBm${la ? ` · LA ${la}` : ""}`,
+          : `Ponto salvo: ${rssi} dBm${la ? ` · LA ${la}` : ""}${nei !== null ? ` · NEI ${nei}` : ""}`,
       );
     },
-    [camOn, grabFrame, manualRssi, manualLa, ocr],
+    [camOn, grabFrame, manualRssi, manualLa, manualNei, ocr],
   );
 
   const start = useCallback(() => {
@@ -233,6 +242,28 @@ function DriveTest() {
     ? Math.round(valid.reduce((s, r) => s + (r.rssi ?? 0), 0) / valid.length)
     : null;
 
+  const shareAll = useCallback(async () => {
+    if (!readings.length) return;
+    const text = summaryText(readings);
+    const ok = await shareFiles(
+      [
+        {
+          filename: `tetra-${stamp}.kml`,
+          content: buildKml(readings),
+          mime: "application/vnd.google-earth.kml+xml",
+        },
+        { filename: `tetra-${stamp}.csv`, content: buildCsv(readings), mime: "text/csv" },
+      ],
+      text,
+    );
+    if (!ok) {
+      download(`tetra-${stamp}.kml`, buildKml(readings), "application/vnd.google-earth.kml+xml");
+      download(`tetra-${stamp}.csv`, buildCsv(readings), "text/csv");
+      toast.info("Arquivos baixados. Anexe-os na conversa do WhatsApp.");
+      window.open(whatsappTextUrl(text), "_blank", "noopener");
+    }
+  }, [readings, stamp]);
+
   return (
     <main className="min-h-screen bg-background pb-16 text-foreground">
       <Toaster position="top-center" />
@@ -268,6 +299,8 @@ function DriveTest() {
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 ERB de serviço: <span className="font-mono text-accent">LA {last?.la ?? "--"}</span>
+                {" · "}
+                NEI <span className="font-mono text-accent">{last?.nei ?? "--"}</span>
               </p>
             </div>
             <div className="text-right text-xs text-muted-foreground">
@@ -360,6 +393,19 @@ function DriveTest() {
                 onChange={(e) => setManualLa(e.target.value)}
               />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="nei" className="text-xs">
+                NEI (ERBs vizinhas)
+              </Label>
+              <Input
+                id="nei"
+                type="number"
+                inputMode="numeric"
+                placeholder="4"
+                value={manualNei}
+                onChange={(e) => setManualNei(e.target.value)}
+              />
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
             Com a câmera ligada o nível e a LA são lidos do visor automaticamente. Sem câmera,
@@ -426,6 +472,15 @@ function DriveTest() {
           </Button>
         </div>
 
+        <Button
+          variant="default"
+          className="w-full"
+          disabled={!readings.length}
+          onClick={() => void shareAll()}
+        >
+          <Share2 /> Compartilhar no WhatsApp
+        </Button>
+
         {/* Tabela */}
         <Card className="border-border bg-card">
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
@@ -445,6 +500,7 @@ function DriveTest() {
                     <th className="px-3 py-2">Hora</th>
                     <th className="px-3 py-2">dBm</th>
                     <th className="px-3 py-2">LA</th>
+                    <th className="px-3 py-2">NEI</th>
                     <th className="px-3 py-2">Latitude</th>
                     <th className="px-3 py-2">Longitude</th>
                   </tr>
@@ -468,6 +524,7 @@ function DriveTest() {
                           {r.rssi ?? "--"}
                         </td>
                         <td className="px-3 py-2 text-accent">{r.la ?? "--"}</td>
+                        <td className="px-3 py-2 text-accent">{r.nei ?? "--"}</td>
                         <td className="px-3 py-2">{r.lat.toFixed(6)}</td>
                         <td className="px-3 py-2">{r.lon.toFixed(6)}</td>
                       </tr>
