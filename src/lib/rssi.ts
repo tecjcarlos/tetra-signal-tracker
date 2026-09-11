@@ -78,7 +78,7 @@ export function buildKml(readings: Reading[], name = "Levantamento TETRA"): stri
     .map((r, i) => {
       const p = readings[i]!;
       return `    <Placemark>
-      <name>Trecho ${i + 1}</name>
+      <name></name>
       <styleUrl>#b${styleIdx(r)}</styleUrl>
       <LineString><tessellate>1</tessellate><coordinates>${p.lon},${p.lat},0 ${r.lon},${r.lat},0</coordinates></LineString>
     </Placemark>`;
