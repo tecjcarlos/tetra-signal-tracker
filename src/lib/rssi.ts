@@ -50,7 +50,7 @@ export function buildKml(readings: Reading[], name = "Levantamento TETRA"): stri
     <IconStyle><scale>0.8</scale><color>${b.kml}</color>
       <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
     </IconStyle>
-    <LabelStyle><scale>0</scale></LabelStyle>
+    <LabelStyle><scale>0.85</scale><color>${b.kml}</color></LabelStyle>
     <LineStyle><color>${b.kml}</color><width>6</width></LineStyle>
   </Style>`,
   ).join("\n");
