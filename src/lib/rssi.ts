@@ -65,7 +65,7 @@ export function buildKml(readings: Reading[], name = "Levantamento TETRA"): stri
     .map((r, i) => {
       const b = bandFor(r.rssi);
       return `    <Placemark>
-      <name>${i + 1}</name>
+      <name>${r.rssi !== null ? `${r.rssi} dBm` : "s/ leitura"}</name>
       <description><![CDATA[<b>Ponto ${i + 1}</b><br/>RSSI: ${r.rssi ?? "-"} dBm<br/>ERB de serviço (LA): ${r.la ? esc(r.la) : "-"}<br/>NEI (ERBs vizinhas): ${r.nei ?? "-"}<br/>Qualidade: ${b.label}<br/>Hora: ${new Date(r.t).toLocaleString("pt-BR")}<br/>Lat/Lon: ${r.lat.toFixed(6)}, ${r.lon.toFixed(6)}<br/>Precisão GPS: ${r.accuracy?.toFixed(0) ?? "-"} m]]></description>
       <styleUrl>#b${styleIdx(r)}</styleUrl>
       <Point><coordinates>${r.lon},${r.lat},0</coordinates></Point>
