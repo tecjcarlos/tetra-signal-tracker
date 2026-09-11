@@ -5,6 +5,7 @@ export type Reading = {
   lon: number;
   rssi: number | null;
   la: string | null;
+  nei: number | null;
   accuracy: number | null;
   speedKmh: number | null;
   source: "auto" | "manual";
@@ -46,9 +47,10 @@ const esc = (s: string) => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;
 export function buildKml(readings: Reading[], name = "Levantamento TETRA"): string {
   const styles = BANDS.map(
     (b, i) => `  <Style id="b${i}">
-    <IconStyle><scale>0.9</scale><color>${b.kml}</color>
+    <IconStyle><scale>0.8</scale><color>${b.kml}</color>
       <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
     </IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
     <LineStyle><color>${b.kml}</color><width>6</width></LineStyle>
   </Style>`,
   ).join("\n");
@@ -63,8 +65,8 @@ export function buildKml(readings: Reading[], name = "Levantamento TETRA"): stri
     .map((r, i) => {
       const b = bandFor(r.rssi);
       return `    <Placemark>
-      <name>${i + 1}: ${r.rssi === null ? "s/ leitura" : `${r.rssi} dBm`}${r.la ? ` (LA ${esc(r.la)})` : ""}</name>
-      <description><![CDATA[RSSI: ${r.rssi ?? "-"} dBm<br/>ERB de serviço (LA): ${r.la ?? "-"}<br/>Qualidade: ${b.label}<br/>Hora: ${new Date(r.t).toLocaleString("pt-BR")}<br/>Lat/Lon: ${r.lat.toFixed(6)}, ${r.lon.toFixed(6)}<br/>Precisão GPS: ${r.accuracy?.toFixed(0) ?? "-"} m]]></description>
+      <name>${i + 1}</name>
+      <description><![CDATA[<b>Ponto ${i + 1}</b><br/>RSSI: ${r.rssi ?? "-"} dBm<br/>ERB de serviço (LA): ${r.la ? esc(r.la) : "-"}<br/>NEI (ERBs vizinhas): ${r.nei ?? "-"}<br/>Qualidade: ${b.label}<br/>Hora: ${new Date(r.t).toLocaleString("pt-BR")}<br/>Lat/Lon: ${r.lat.toFixed(6)}, ${r.lon.toFixed(6)}<br/>Precisão GPS: ${r.accuracy?.toFixed(0) ?? "-"} m]]></description>
       <styleUrl>#b${styleIdx(r)}</styleUrl>
       <Point><coordinates>${r.lon},${r.lat},0</coordinates></Point>
     </Placemark>`;
@@ -76,7 +78,7 @@ export function buildKml(readings: Reading[], name = "Levantamento TETRA"): stri
     .map((r, i) => {
       const p = readings[i]!;
       return `    <Placemark>
-      <name>Trecho ${i + 1}</name>
+      <name></name>
       <styleUrl>#b${styleIdx(r)}</styleUrl>
       <LineString><tessellate>1</tessellate><coordinates>${p.lon},${p.lat},0 ${r.lon},${r.lat},0</coordinates></LineString>
     </Placemark>`;
@@ -100,7 +102,7 @@ ${points}
 
 export function buildCsv(readings: Reading[]): string {
   const head =
-    "indice,data_hora,latitude,longitude,rssi_dbm,la_erb,qualidade,precisao_m,velocidade_kmh,origem";
+    "indice,data_hora,latitude,longitude,rssi_dbm,la_erb,nei_vizinhas,qualidade,precisao_m,velocidade_kmh,origem";
   const rows = readings.map((r, i) =>
     [
       i + 1,
@@ -109,6 +111,7 @@ export function buildCsv(readings: Reading[]): string {
       r.lon.toFixed(6),
       r.rssi ?? "",
       r.la ? `"${r.la.replace(/"/g, '""')}"` : "",
+      r.nei ?? "",
       bandFor(r.rssi).label,
       r.accuracy?.toFixed(0) ?? "",
       r.speedKmh?.toFixed(1) ?? "",
@@ -126,4 +129,41 @@ export function download(filename: string, content: string, mime: string) {
   a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/**
+ * Tenta compartilhar os arquivos (WhatsApp aparece na folha de compartilhamento
+ * do aparelho). Retorna false quando o aparelho não suporta envio de arquivos.
+ */
+export async function shareFiles(
+  files: { filename: string; content: string; mime: string }[],
+  text: string,
+): Promise<boolean> {
+  const nav = navigator as Navigator & {
+    canShare?: (d: ShareData) => boolean;
+    share?: (d: ShareData) => Promise<void>;
+  };
+  if (typeof File === "undefined" || !nav.share || !nav.canShare) return false;
+  const list = files.map((f) => new File([f.content], f.filename, { type: f.mime }));
+  const payload: ShareData & { files: File[] } = { files: list, title: "TETRA Drive Test", text };
+  if (!nav.canShare(payload)) return false;
+  try {
+    await nav.share(payload);
+    return true;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") return true;
+    return false;
+  }
+}
+
+export function whatsappTextUrl(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+export function summaryText(readings: Reading[]): string {
+  const valid = readings.filter((r) => r.rssi !== null);
+  const avg = valid.length
+    ? Math.round(valid.reduce((s, r) => s + (r.rssi ?? 0), 0) / valid.length)
+    : null;
+  return `Levantamento TETRA: ${readings.length} pontos registrados${avg !== null ? `, média ${avg} dBm` : ""}.`;
 }
