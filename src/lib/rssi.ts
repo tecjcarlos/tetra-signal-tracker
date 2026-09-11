@@ -130,3 +130,40 @@ export function download(filename: string, content: string, mime: string) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+
+/**
+ * Tenta compartilhar os arquivos (WhatsApp aparece na folha de compartilhamento
+ * do aparelho). Retorna false quando o aparelho não suporta envio de arquivos.
+ */
+export async function shareFiles(
+  files: { filename: string; content: string; mime: string }[],
+  text: string,
+): Promise<boolean> {
+  const nav = navigator as Navigator & {
+    canShare?: (d: ShareData) => boolean;
+    share?: (d: ShareData) => Promise<void>;
+  };
+  if (typeof File === "undefined" || !nav.share || !nav.canShare) return false;
+  const list = files.map((f) => new File([f.content], f.filename, { type: f.mime }));
+  const payload: ShareData & { files: File[] } = { files: list, title: "TETRA Drive Test", text };
+  if (!nav.canShare(payload)) return false;
+  try {
+    await nav.share(payload);
+    return true;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") return true;
+    return false;
+  }
+}
+
+export function whatsappTextUrl(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+export function summaryText(readings: Reading[]): string {
+  const valid = readings.filter((r) => r.rssi !== null);
+  const avg = valid.length
+    ? Math.round(valid.reduce((s, r) => s + (r.rssi ?? 0), 0) / valid.length)
+    : null;
+  return `Levantamento TETRA: ${readings.length} pontos registrados${avg !== null ? `, média ${avg} dBm` : ""}.`;
+}
