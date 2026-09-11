@@ -266,6 +266,9 @@ function DriveTest() {
               <p className="mt-1 text-sm" style={{ color: lastBand.hex }}>
                 {lastBand.label}
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                ERB de serviço: <span className="font-mono text-accent">LA {last?.la ?? "--"}</span>
+              </p>
             </div>
             <div className="text-right text-xs text-muted-foreground">
               <p>{readings.length} pontos</p>
@@ -345,10 +348,22 @@ function DriveTest() {
                 onChange={(e) => setManualRssi(e.target.value)}
               />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="la" className="text-xs">
+                ERB de serviço (LA)
+              </Label>
+              <Input
+                id="la"
+                inputMode="text"
+                placeholder="12"
+                value={manualLa}
+                onChange={(e) => setManualLa(e.target.value)}
+              />
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Com a câmera ligada o nível é lido do visor automaticamente. Sem câmera, o valor
-            manual acima é usado em cada ponto.
+            Com a câmera ligada o nível e a LA são lidos do visor automaticamente. Sem câmera,
+            os valores manuais acima são usados em cada ponto.
           </p>
           <Button
             size="lg"
@@ -429,6 +444,7 @@ function DriveTest() {
                     <th className="px-3 py-2">#</th>
                     <th className="px-3 py-2">Hora</th>
                     <th className="px-3 py-2">dBm</th>
+                    <th className="px-3 py-2">LA</th>
                     <th className="px-3 py-2">Latitude</th>
                     <th className="px-3 py-2">Longitude</th>
                   </tr>
@@ -451,6 +467,7 @@ function DriveTest() {
                         >
                           {r.rssi ?? "--"}
                         </td>
+                        <td className="px-3 py-2 text-accent">{r.la ?? "--"}</td>
                         <td className="px-3 py-2">{r.lat.toFixed(6)}</td>
                         <td className="px-3 py-2">{r.lon.toFixed(6)}</td>
                       </tr>
