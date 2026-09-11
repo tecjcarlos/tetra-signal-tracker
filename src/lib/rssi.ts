@@ -102,7 +102,7 @@ ${points}
 
 export function buildCsv(readings: Reading[]): string {
   const head =
-    "indice,data_hora,latitude,longitude,rssi_dbm,la_erb,qualidade,precisao_m,velocidade_kmh,origem";
+    "indice,data_hora,latitude,longitude,rssi_dbm,la_erb,nei_vizinhas,qualidade,precisao_m,velocidade_kmh,origem";
   const rows = readings.map((r, i) =>
     [
       i + 1,
