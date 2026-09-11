@@ -47,9 +47,10 @@ const esc = (s: string) => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;
 export function buildKml(readings: Reading[], name = "Levantamento TETRA"): string {
   const styles = BANDS.map(
     (b, i) => `  <Style id="b${i}">
-    <IconStyle><scale>0.9</scale><color>${b.kml}</color>
+    <IconStyle><scale>0.8</scale><color>${b.kml}</color>
       <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
     </IconStyle>
+    <LabelStyle><scale>0</scale></LabelStyle>
     <LineStyle><color>${b.kml}</color><width>6</width></LineStyle>
   </Style>`,
   ).join("\n");
