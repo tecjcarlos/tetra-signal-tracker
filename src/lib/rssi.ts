@@ -111,6 +111,7 @@ export function buildCsv(readings: Reading[]): string {
       r.lon.toFixed(6),
       r.rssi ?? "",
       r.la ? `"${r.la.replace(/"/g, '""')}"` : "",
+      r.nei ?? "",
       bandFor(r.rssi).label,
       r.accuracy?.toFixed(0) ?? "",
       r.speedKmh?.toFixed(1) ?? "",
