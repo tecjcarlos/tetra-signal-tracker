@@ -5,6 +5,7 @@ export type Reading = {
   lon: number;
   rssi: number | null;
   la: string | null;
+  nei: number | null;
   accuracy: number | null;
   speedKmh: number | null;
   source: "auto" | "manual";
