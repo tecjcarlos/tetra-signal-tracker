@@ -317,6 +317,8 @@ function DriveTest() {
   const last = readings[readings.length - 1];
   const lastBand = bandFor(last?.rssi ?? null);
   const valid = readings.filter((r) => r.rssi !== null);
+  const pendingCount = readings.length - valid.length;
+
   const avg = valid.length
     ? Math.round(valid.reduce((s, r) => s + (r.rssi ?? 0), 0) / valid.length)
     : null;
