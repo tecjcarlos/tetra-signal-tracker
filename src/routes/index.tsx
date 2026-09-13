@@ -438,15 +438,17 @@ function DriveTest() {
             >
               <ScanLine /> {capturing ? "Lendo visor..." : "Capturar tela do rádio"}
             </Button>
-            <Button
-              variant={autoRead ? "secondary" : "outline"}
-              className="w-full"
-              onClick={() => setAutoRead((v) => !v)}
-            >
-              {autoRead
-                ? "Leitura automática ligada (toca a cada ponto)"
-                : "Leitura automática desligada (usa os valores capturados)"}
-            </Button>
+            {pendingCount > 0 && (
+              <Button variant="secondary" className="w-full" onClick={fixLastPending}>
+                Corrigir último ponto sem leitura ({pendingCount} pendente
+                {pendingCount > 1 ? "s" : ""})
+              </Button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              A leitura é automática a cada ponto (3 tentativas). Se falhar, pare o carro,
+              toque em "Capturar tela do rádio" e depois em "Corrigir último ponto".
+            </p>
+
           </div>
         </Card>
 
