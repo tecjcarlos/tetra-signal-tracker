@@ -234,17 +234,19 @@ function DriveTest() {
       if (idx === -1) return prev;
       fixed = true;
       const copy = [...prev];
+      const target = copy[idx]!;
       copy[idx] = {
-        ...copy[idx],
+        ...target,
         rssi: r,
-        la: manualLa.trim() || copy[idx].la,
+        la: manualLa.trim() || target.la,
         nei:
           manualNei.trim() !== "" && Number.isFinite(Number(manualNei))
             ? Number(manualNei)
-            : copy[idx].nei,
+            : target.nei,
         source: "manual",
       };
       return copy;
+
     });
     setTimeout(() => {
       if (fixed) {
