@@ -138,19 +138,26 @@ function DriveTest() {
       let nei: number | null =
         manualNei.trim() !== "" && Number.isFinite(Number(manualNei)) ? Number(manualNei) : null;
       try {
-        const frame = camOn && autoRead ? grabFrame() : null;
-        if (frame) {
-          setStatus("Lendo visor do rádio...");
+        const attempts = camOn ? 3 : 0;
+        for (let i = 0; i < attempts && rssi === null; i++) {
+          const frame = grabFrame();
+          if (!frame) break;
+          setStatus(`Lendo visor do rádio (tentativa ${i + 1}/${attempts})...`);
           const out = await ocr({ data: { image: frame } });
-          rssi = out.rssi;
-          if (out.la) la = out.la;
-          if (out.nei !== null) nei = out.nei;
-          if (rssi === null) setStatus("Visor ilegível neste ponto");
-        } else if (manualRssi.trim() !== "") {
-          rssi = Number(manualRssi);
-          if (!Number.isFinite(rssi)) rssi = null;
+          if (out.rssi !== null) {
+            rssi = out.rssi;
+            if (out.la) la = out.la;
+            if (out.nei !== null) nei = out.nei;
+          } else if (i < attempts - 1) {
+            await new Promise((r) => setTimeout(r, 400));
+          }
+        }
+        if (rssi === null && manualRssi.trim() !== "") {
+          const m = Number(manualRssi);
+          rssi = Number.isFinite(m) ? m : null;
         }
       } catch (e) {
+
         toast.error(e instanceof Error ? e.message : "Falha ao ler o visor");
       } finally {
         busyRef.current = false;
