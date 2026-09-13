@@ -11,6 +11,7 @@ import {
   Trash2,
   Crosshair,
   Share2,
+  ScanLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -74,6 +75,8 @@ function DriveTest() {
   const [pos, setPos] = useState<GeolocationPosition | null>(null);
   const [distance, setDistance] = useState(0);
   const [status, setStatus] = useState("Pronto");
+  const [autoRead, setAutoRead] = useState(true);
+  const [capturing, setCapturing] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -135,7 +138,7 @@ function DriveTest() {
       let nei: number | null =
         manualNei.trim() !== "" && Number.isFinite(Number(manualNei)) ? Number(manualNei) : null;
       try {
-        const frame = camOn ? grabFrame() : null;
+        const frame = camOn && autoRead ? grabFrame() : null;
         if (frame) {
           setStatus("Lendo visor do rádio...");
           const out = await ocr({ data: { image: frame } });
@@ -173,8 +176,42 @@ function DriveTest() {
           : `Ponto salvo: ${rssi} dBm${la ? ` · LA ${la}` : ""}${nei !== null ? ` · NEI ${nei}` : ""}`,
       );
     },
-    [camOn, grabFrame, manualRssi, manualLa, manualNei, ocr],
+    [camOn, autoRead, grabFrame, manualRssi, manualLa, manualNei, ocr],
   );
+
+  const captureScreen = useCallback(async () => {
+    if (!camOn) {
+      toast.error("Ligue a câmera antes de capturar.");
+      return;
+    }
+    if (busyRef.current) return;
+    const frame = grabFrame();
+    if (!frame) {
+      toast.error("Não foi possível capturar a imagem.");
+      return;
+    }
+    busyRef.current = true;
+    setCapturing(true);
+    setStatus("Lendo visor do rádio...");
+    try {
+      const out = await ocr({ data: { image: frame } });
+      if (out.rssi !== null) setManualRssi(String(out.rssi));
+      if (out.la) setManualLa(out.la);
+      if (out.nei !== null) setManualNei(String(out.nei));
+      setStatus(
+        out.rssi === null
+          ? "Visor ilegível, tente novamente com o carro parado"
+          : `Capturado: ${out.rssi} dBm${out.la ? ` · LA ${out.la}` : ""}${out.nei !== null ? ` · NEI ${out.nei}` : ""}`,
+      );
+      if (out.rssi === null) toast.error("Não consegui ler o visor. Tente de novo.");
+      else toast.success("Leitura capturada. Confira e use 'Marcar agora'.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao ler o visor");
+    } finally {
+      busyRef.current = false;
+      setCapturing(false);
+    }
+  }, [camOn, grabFrame, ocr]);
 
   const start = useCallback(() => {
     if (!("geolocation" in navigator)) {
