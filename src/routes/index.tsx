@@ -75,7 +75,7 @@ function DriveTest() {
   const [pos, setPos] = useState<GeolocationPosition | null>(null);
   const [distance, setDistance] = useState(0);
   const [status, setStatus] = useState("Pronto");
-  const [autoRead, setAutoRead] = useState(true);
+  
   const [capturing, setCapturing] = useState(false);
 
   useEffect(() => {
@@ -138,19 +138,26 @@ function DriveTest() {
       let nei: number | null =
         manualNei.trim() !== "" && Number.isFinite(Number(manualNei)) ? Number(manualNei) : null;
       try {
-        const frame = camOn && autoRead ? grabFrame() : null;
-        if (frame) {
-          setStatus("Lendo visor do rádio...");
+        const attempts = camOn ? 3 : 0;
+        for (let i = 0; i < attempts && rssi === null; i++) {
+          const frame = grabFrame();
+          if (!frame) break;
+          setStatus(`Lendo visor do rádio (tentativa ${i + 1}/${attempts})...`);
           const out = await ocr({ data: { image: frame } });
-          rssi = out.rssi;
-          if (out.la) la = out.la;
-          if (out.nei !== null) nei = out.nei;
-          if (rssi === null) setStatus("Visor ilegível neste ponto");
-        } else if (manualRssi.trim() !== "") {
-          rssi = Number(manualRssi);
-          if (!Number.isFinite(rssi)) rssi = null;
+          if (out.rssi !== null) {
+            rssi = out.rssi;
+            if (out.la) la = out.la;
+            if (out.nei !== null) nei = out.nei;
+          } else if (i < attempts - 1) {
+            await new Promise((r) => setTimeout(r, 400));
+          }
+        }
+        if (rssi === null && manualRssi.trim() !== "") {
+          const m = Number(manualRssi);
+          rssi = Number.isFinite(m) ? m : null;
         }
       } catch (e) {
+
         toast.error(e instanceof Error ? e.message : "Falha ao ler o visor");
       } finally {
         busyRef.current = false;
@@ -172,12 +179,14 @@ function DriveTest() {
       lastFixRef.current = { lat: reading.lat, lon: reading.lon };
       setStatus(
         rssi === null
-          ? "Ponto salvo sem nível"
+          ? "Não consegui ler o visor. Pare o carro e use 'Capturar tela do rádio'."
           : `Ponto salvo: ${rssi} dBm${la ? ` · LA ${la}` : ""}${nei !== null ? ` · NEI ${nei}` : ""}`,
       );
+      if (rssi === null) toast.warning("Ponto sem nível. Corrija com a captura manual.");
     },
-    [camOn, autoRead, grabFrame, manualRssi, manualLa, manualNei, ocr],
+    [camOn, grabFrame, manualRssi, manualLa, manualNei, ocr],
   );
+
 
   const captureScreen = useCallback(async () => {
     if (!camOn) {
@@ -212,6 +221,41 @@ function DriveTest() {
       setCapturing(false);
     }
   }, [camOn, grabFrame, ocr]);
+
+  const fixLastPending = useCallback(() => {
+    const r = Number(manualRssi);
+    if (manualRssi.trim() === "" || !Number.isFinite(r)) {
+      toast.error("Informe ou capture o nível antes de corrigir.");
+      return;
+    }
+    let fixed = false;
+    setReadings((prev) => {
+      const idx = [...prev].map((x) => x.rssi).lastIndexOf(null);
+      if (idx === -1) return prev;
+      fixed = true;
+      const copy = [...prev];
+      const target = copy[idx]!;
+      copy[idx] = {
+        ...target,
+        rssi: r,
+        la: manualLa.trim() || target.la,
+        nei:
+          manualNei.trim() !== "" && Number.isFinite(Number(manualNei))
+            ? Number(manualNei)
+            : target.nei,
+        source: "manual",
+      };
+      return copy;
+
+    });
+    setTimeout(() => {
+      if (fixed) {
+        toast.success("Ponto corrigido com os dados capturados.");
+        setStatus("Último ponto sem leitura foi corrigido.");
+      } else toast.info("Não há pontos sem leitura.");
+    }, 0);
+  }, [manualRssi, manualLa, manualNei]);
+
 
   const start = useCallback(() => {
     if (!("geolocation" in navigator)) {
@@ -275,6 +319,8 @@ function DriveTest() {
   const last = readings[readings.length - 1];
   const lastBand = bandFor(last?.rssi ?? null);
   const valid = readings.filter((r) => r.rssi !== null);
+  const pendingCount = readings.length - valid.length;
+
   const avg = valid.length
     ? Math.round(valid.reduce((s, r) => s + (r.rssi ?? 0), 0) / valid.length)
     : null;
@@ -396,15 +442,17 @@ function DriveTest() {
             >
               <ScanLine /> {capturing ? "Lendo visor..." : "Capturar tela do rádio"}
             </Button>
-            <Button
-              variant={autoRead ? "secondary" : "outline"}
-              className="w-full"
-              onClick={() => setAutoRead((v) => !v)}
-            >
-              {autoRead
-                ? "Leitura automática ligada (toca a cada ponto)"
-                : "Leitura automática desligada (usa os valores capturados)"}
-            </Button>
+            {pendingCount > 0 && (
+              <Button variant="secondary" className="w-full" onClick={fixLastPending}>
+                Corrigir último ponto sem leitura ({pendingCount} pendente
+                {pendingCount > 1 ? "s" : ""})
+              </Button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              A leitura é automática a cada ponto (3 tentativas). Se falhar, pare o carro,
+              toque em "Capturar tela do rádio" e depois em "Corrigir último ponto".
+            </p>
+
           </div>
         </Card>
 
