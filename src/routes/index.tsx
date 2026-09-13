@@ -75,7 +75,7 @@ function DriveTest() {
   const [pos, setPos] = useState<GeolocationPosition | null>(null);
   const [distance, setDistance] = useState(0);
   const [status, setStatus] = useState("Pronto");
-  const [capturing0, setCapturing0] = useState(false);
+  
   const [capturing, setCapturing] = useState(false);
 
   useEffect(() => {
