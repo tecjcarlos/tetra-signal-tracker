@@ -179,12 +179,14 @@ function DriveTest() {
       lastFixRef.current = { lat: reading.lat, lon: reading.lon };
       setStatus(
         rssi === null
-          ? "Ponto salvo sem nível"
+          ? "Não consegui ler o visor. Pare o carro e use 'Capturar tela do rádio'."
           : `Ponto salvo: ${rssi} dBm${la ? ` · LA ${la}` : ""}${nei !== null ? ` · NEI ${nei}` : ""}`,
       );
+      if (rssi === null) toast.warning("Ponto sem nível. Corrija com a captura manual.");
     },
-    [camOn, autoRead, grabFrame, manualRssi, manualLa, manualNei, ocr],
+    [camOn, grabFrame, manualRssi, manualLa, manualNei, ocr],
   );
+
 
   const captureScreen = useCallback(async () => {
     if (!camOn) {
