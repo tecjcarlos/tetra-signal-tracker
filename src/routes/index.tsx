@@ -222,6 +222,39 @@ function DriveTest() {
     }
   }, [camOn, grabFrame, ocr]);
 
+  const fixLastPending = useCallback(() => {
+    const r = Number(manualRssi);
+    if (manualRssi.trim() === "" || !Number.isFinite(r)) {
+      toast.error("Informe ou capture o nível antes de corrigir.");
+      return;
+    }
+    let fixed = false;
+    setReadings((prev) => {
+      const idx = [...prev].map((x) => x.rssi).lastIndexOf(null);
+      if (idx === -1) return prev;
+      fixed = true;
+      const copy = [...prev];
+      copy[idx] = {
+        ...copy[idx],
+        rssi: r,
+        la: manualLa.trim() || copy[idx].la,
+        nei:
+          manualNei.trim() !== "" && Number.isFinite(Number(manualNei))
+            ? Number(manualNei)
+            : copy[idx].nei,
+        source: "manual",
+      };
+      return copy;
+    });
+    setTimeout(() => {
+      if (fixed) {
+        toast.success("Ponto corrigido com os dados capturados.");
+        setStatus("Último ponto sem leitura foi corrigido.");
+      } else toast.info("Não há pontos sem leitura.");
+    }, 0);
+  }, [manualRssi, manualLa, manualNei]);
+
+
   const start = useCallback(() => {
     if (!("geolocation" in navigator)) {
       toast.error("Este aparelho não fornece localização.");
