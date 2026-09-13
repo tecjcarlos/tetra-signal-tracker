@@ -376,16 +376,34 @@ function DriveTest() {
               <div className="pointer-events-none absolute inset-x-8 inset-y-10 rounded-lg border-2 border-dashed border-primary/70" />
             )}
           </div>
-          <div className="flex gap-2 p-3">
+          <div className="space-y-2 p-3">
+            <div className="flex gap-2">
+              <Button
+                variant={camOn ? "secondary" : "default"}
+                className="flex-1"
+                onClick={() => (camOn ? stopCamera() : void startCamera())}
+              >
+                <Camera /> {camOn ? "Desligar câmera" : "Ligar câmera"}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={markNow}>
+                <Crosshair /> Marcar agora
+              </Button>
+            </div>
             <Button
-              variant={camOn ? "secondary" : "default"}
-              className="flex-1"
-              onClick={() => (camOn ? stopCamera() : void startCamera())}
+              className="w-full"
+              disabled={!camOn || capturing}
+              onClick={() => void captureScreen()}
             >
-              <Camera /> {camOn ? "Desligar câmera" : "Ligar câmera"}
+              <ScanLine /> {capturing ? "Lendo visor..." : "Capturar tela do rádio"}
             </Button>
-            <Button variant="outline" className="flex-1" onClick={markNow}>
-              <Crosshair /> Marcar agora
+            <Button
+              variant={autoRead ? "secondary" : "outline"}
+              className="w-full"
+              onClick={() => setAutoRead((v) => !v)}
+            >
+              {autoRead
+                ? "Leitura automática ligada (toca a cada ponto)"
+                : "Leitura automática desligada (usa os valores capturados)"}
             </Button>
           </div>
         </Card>
