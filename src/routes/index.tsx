@@ -64,11 +64,16 @@ function DriveTest() {
   const watchRef = useRef<number | null>(null);
   const lastFixRef = useRef<{ lat: number; lon: number } | null>(null);
   const busyRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const posRef = useRef<GeolocationPosition | null>(null);
+
 
   const [readings, setReadings] = useState<Reading[]>([]);
   const [tracking, setTracking] = useState(false);
   const [camOn, setCamOn] = useState(false);
   const [stepM, setStepM] = useState(50);
+  const [mode, setMode] = useState<"distance" | "time">("distance");
+  const [stepS, setStepS] = useState(3);
   const [manualRssi, setManualRssi] = useState("");
   const [manualLa, setManualLa] = useState("");
   const [manualNei, setManualNei] = useState("");
@@ -267,6 +272,8 @@ function DriveTest() {
     watchRef.current = navigator.geolocation.watchPosition(
       (p) => {
         setPos(p);
+        posRef.current = p;
+        if (mode === "time") return;
         const last = lastFixRef.current;
         if (!last) {
           void record(p, "auto");
@@ -284,11 +291,29 @@ function DriveTest() {
       },
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 },
     );
-  }, [record, stepM]);
+    if (mode === "time") {
+      timerRef.current = setInterval(
+        () => {
+          const p = posRef.current;
+          if (!p) return;
+          const last = lastFixRef.current;
+          if (last) {
+            setDistance(
+              (x) => x + haversine(last.lat, last.lon, p.coords.latitude, p.coords.longitude),
+            );
+          }
+          void record(p, "auto");
+        },
+        Math.max(1, stepS) * 1000,
+      );
+    }
+  }, [record, stepM, stepS, mode]);
 
   const stop = useCallback(() => {
     if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
     watchRef.current = null;
+    if (timerRef.current !== null) clearInterval(timerRef.current);
+    timerRef.current = null;
     setTracking(false);
     setStatus("Parado");
   }, []);
@@ -296,6 +321,7 @@ function DriveTest() {
   useEffect(() => {
     return () => {
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
+      if (timerRef.current !== null) clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
@@ -356,7 +382,7 @@ function DriveTest() {
           <div>
             <h1 className="text-lg font-bold tracking-tight">TETRA Drive Test</h1>
             <p className="text-xs text-muted-foreground">
-              Nível de sinal + posição a cada {stepM} m
+              Nível de sinal + posição a cada {mode === "time" ? `${stepS} s` : `${stepM} m`}
             </p>
           </div>
         </div>
@@ -459,6 +485,29 @@ function DriveTest() {
         {/* Controles */}
         <Card className="space-y-3 border-border bg-card p-4">
           <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Registrar por</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={mode === "distance" ? "default" : "outline"}
+                  className="flex-1"
+                  disabled={tracking}
+                  onClick={() => setMode("distance")}
+                >
+                  Distância
+                </Button>
+                <Button
+                  type="button"
+                  variant={mode === "time" ? "default" : "outline"}
+                  className="flex-1"
+                  disabled={tracking}
+                  onClick={() => setMode("time")}
+                >
+                  Tempo
+                </Button>
+              </div>
+            </div>
             <div className="space-y-1">
               <Label htmlFor="step" className="text-xs">
                 Intervalo (metros)
@@ -467,8 +516,22 @@ function DriveTest() {
                 id="step"
                 type="number"
                 inputMode="numeric"
+                disabled={mode !== "distance"}
                 value={stepM}
                 onChange={(e) => setStepM(Math.max(5, Number(e.target.value) || 50))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="steps" className="text-xs">
+                Intervalo (segundos)
+              </Label>
+              <Input
+                id="steps"
+                type="number"
+                inputMode="numeric"
+                disabled={mode !== "time"}
+                value={stepS}
+                onChange={(e) => setStepS(Math.max(1, Number(e.target.value) || 3))}
               />
             </div>
             <div className="space-y-1">
