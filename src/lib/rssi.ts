@@ -44,57 +44,209 @@ export function haversine(aLat: number, aLon: number, bLat: number, bLon: number
 
 const esc = (s: string) => s.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c]!);
 
-export function buildKml(readings: Reading[], name = "Levantamento TETRA"): string {
-  const styles = BANDS.map(
-    (b, i) => `  <Style id="b${i}">
-    <IconStyle><scale>0.8</scale><color>${b.kml}</color>
+// ---- Classificação profissional de drive test (usada apenas no KML) ----
+type RssiClass = {
+  id: string;
+  label: string;
+  color: string; // aabbggrr
+  range: string;
+  test: (rssi: number) => boolean;
+};
+
+const RSSI_CLASSES: RssiClass[] = [
+  {
+    id: "rssi-excellent",
+    label: "EXCELENTE",
+    color: "ff00ff00",
+    range: ">= -65 dBm",
+    test: (r) => r >= -65,
+  },
+  {
+    id: "rssi-good",
+    label: "BOM",
+    color: "ff80ff80",
+    range: "-66 a -75 dBm",
+    test: (r) => r >= -75,
+  },
+  {
+    id: "rssi-acceptable",
+    label: "ACEITÁVEL",
+    color: "ff00ffff",
+    range: "-76 a -85 dBm",
+    test: (r) => r >= -85,
+  },
+  {
+    id: "rssi-weak",
+    label: "FRACO",
+    color: "ff0080ff",
+    range: "-86 a -95 dBm",
+    test: (r) => r >= -95,
+  },
+  {
+    id: "rssi-critical",
+    label: "CRÍTICO",
+    color: "ff0000ff",
+    range: "< -95 dBm",
+    test: () => true,
+  },
+];
+
+const NO_RSSI: RssiClass = {
+  id: "sem-rssi",
+  label: "SEM RSSI",
+  color: "ff808080",
+  range: "sem leitura",
+  test: () => false,
+};
+
+function classify(rssi: number | null): RssiClass {
+  if (rssi === null || !Number.isFinite(rssi)) return NO_RSSI;
+  return RSSI_CLASSES.find((c) => c.test(rssi)) ?? RSSI_CLASSES[RSSI_CLASSES.length - 1]!;
+}
+
+const pad6 = (n: number) => String(n).padStart(6, "0");
+const localIso = (t: number) => {
+  const d = new Date(t);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+};
+
+export function kmlFilename(date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `TETRA_DriveTest_${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}_${p(date.getHours())}-${p(date.getMinutes())}-${p(date.getSeconds())}.kml`;
+}
+
+export function buildKml(readings: Reading[], name = "TETRA DRIVE TEST"): string {
+  const pts = readings
+    .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon))
+    .slice()
+    .sort((a, b) => a.t - b.t);
+
+  const styles = [...RSSI_CLASSES, NO_RSSI]
+    .map(
+      (c) => `  <Style id="${c.id}">
+    <IconStyle><scale>0.9</scale><color>${c.color}</color>
       <Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>
     </IconStyle>
-    <LabelStyle><scale>0.85</scale><color>${b.kml}</color></LabelStyle>
-    <LineStyle><color>${b.kml}</color><width>6</width></LineStyle>
+    <LabelStyle><scale>0.8</scale><color>${c.color}</color></LabelStyle>
   </Style>`,
-  ).join("\n");
+    )
+    .join("\n");
 
-  const styleIdx = (r: Reading) => {
-    if (r.rssi === null) return 3;
-    const i = BANDS.findIndex((b) => r.rssi! >= b.min);
-    return i < 0 ? 3 : i;
+  const routeStyle = `  <Style id="route-line">
+    <LineStyle><color>ffcfcfcf</color><width>3</width></LineStyle>
+  </Style>`;
+
+  const route = `  <Folder><name>ROTA DO TESTE</name>
+    <Placemark>
+      <name>Rota do drive test</name>
+      <styleUrl>#route-line</styleUrl>
+      <LineString><tessellate>1</tessellate><altitudeMode>clampToGround</altitudeMode>
+        <coordinates>${pts.map((r) => `${r.lon.toFixed(6)},${r.lat.toFixed(6)},0`).join(" ")}</coordinates>
+      </LineString>
+    </Placemark>
+  </Folder>`;
+
+  const placemark = (r: Reading, idx: number) => {
+    const c = classify(r.rssi);
+    const when = new Date(r.t);
+    const rows: string[] = [];
+    if (r.rssi !== null) rows.push(`<tr><td><b>RSSI</b></td><td>${r.rssi} dBm</td></tr>`);
+    rows.push(`<tr><td><b>CLASSIFICAÇÃO</b></td><td>${c.label}</td></tr>`);
+    if (r.la) rows.push(`<tr><td><b>LA</b></td><td>${esc(r.la)}</td></tr>`);
+    if (r.nei !== null && r.nei !== undefined)
+      rows.push(`<tr><td><b>NEI</b></td><td>${r.nei}</td></tr>`);
+    rows.push(`<tr><td><b>HORÁRIO</b></td><td>${when.toLocaleString("pt-BR")}</td></tr>`);
+    rows.push(`<tr><td><b>LATITUDE</b></td><td>${r.lat.toFixed(6)}</td></tr>`);
+    rows.push(`<tr><td><b>LONGITUDE</b></td><td>${r.lon.toFixed(6)}</td></tr>`);
+
+    const data: string[] = [];
+    if (r.rssi !== null) data.push(`<Data name="RSSI"><value>${r.rssi}</value></Data>`);
+    if (r.la) data.push(`<Data name="LA"><value>${esc(r.la)}</value></Data>`);
+    if (r.nei !== null && r.nei !== undefined)
+      data.push(`<Data name="NEI"><value>${r.nei}</value></Data>`);
+    data.push(`<Data name="Latitude"><value>${r.lat.toFixed(6)}</value></Data>`);
+    data.push(`<Data name="Longitude"><value>${r.lon.toFixed(6)}</value></Data>`);
+    data.push(`<Data name="Timestamp"><value>${localIso(r.t)}</value></Data>`);
+    data.push(`<Data name="RSSI_Class"><value>${c.label}</value></Data>`);
+
+    return `      <Placemark>
+        <name>${r.rssi !== null ? `${r.rssi} dBm` : "s/ RSSI"}</name>
+        <description><![CDATA[<h3>MEDIÇÃO ${pad6(idx)}</h3><table>${rows.join("")}</table>]]></description>
+        <styleUrl>#${c.id}</styleUrl>
+        <TimeStamp><when>${localIso(r.t)}</when></TimeStamp>
+        <ExtendedData>${data.join("")}</ExtendedData>
+        <Point><coordinates>${r.lon.toFixed(6)},${r.lat.toFixed(6)},0</coordinates></Point>
+      </Placemark>`;
   };
 
-  const points = readings
-    .map((r, i) => {
-      const b = bandFor(r.rssi);
-      return `    <Placemark>
-      <name>${r.rssi !== null ? `${r.rssi} dBm` : "s/ leitura"}</name>
-      <description><![CDATA[<b>Ponto ${i + 1}</b><br/>RSSI: ${r.rssi ?? "-"} dBm<br/>ERB de serviço (LA): ${r.la ? esc(r.la) : "-"}<br/>NEI (ERBs vizinhas): ${r.nei ?? "-"}<br/>Qualidade: ${b.label}<br/>Hora: ${new Date(r.t).toLocaleString("pt-BR")}<br/>Lat/Lon: ${r.lat.toFixed(6)}, ${r.lon.toFixed(6)}<br/>Precisão GPS: ${r.accuracy?.toFixed(0) ?? "-"} m]]></description>
-      <styleUrl>#b${styleIdx(r)}</styleUrl>
-      <Point><coordinates>${r.lon},${r.lat},0</coordinates></Point>
-    </Placemark>`;
-    })
+  const groups = new Map<string, string[]>();
+  pts.forEach((r, i) => {
+    const c = classify(r.rssi);
+    const list = groups.get(c.id) ?? [];
+    list.push(placemark(r, i + 1));
+    groups.set(c.id, list);
+  });
+
+  const folders = [...RSSI_CLASSES, NO_RSSI]
+    .filter((c) => (groups.get(c.id)?.length ?? 0) > 0)
+    .map(
+      (c) => `    <Folder><name>${c.label}</name>
+${groups.get(c.id)!.join("\n")}
+    </Folder>`,
+    )
     .join("\n");
 
-  const segments = readings
-    .slice(1)
-    .map((r, i) => {
-      const p = readings[i]!;
-      return `    <Placemark>
-      <name></name>
-      <styleUrl>#b${styleIdx(r)}</styleUrl>
-      <LineString><tessellate>1</tessellate><coordinates>${p.lon},${p.lat},0 ${r.lon},${r.lat},0</coordinates></LineString>
-    </Placemark>`;
-    })
-    .join("\n");
+  // Resumo
+  const valid = pts.filter((r) => r.rssi !== null) as (Reading & { rssi: number })[];
+  const neis = pts.map((r) => r.nei).filter((n): n is number => typeof n === "number");
+  const first = pts[0];
+  const lastPt = pts[pts.length - 1];
+  const avg = valid.length ? Math.round(valid.reduce((s, r) => s + r.rssi, 0) / valid.length) : null;
+  const min = valid.length ? Math.min(...valid.map((r) => r.rssi)) : null;
+  const max = valid.length ? Math.max(...valid.map((r) => r.rssi)) : null;
+  const neiAvg = neis.length ? (neis.reduce((s, n) => s + n, 0) / neis.length).toFixed(1) : null;
+
+  const counts = [...RSSI_CLASSES, NO_RSSI]
+    .map((c) => `<tr><td><b>${c.label}</b></td><td>${groups.get(c.id)?.length ?? 0}</td></tr>`)
+    .join("");
+
+  const legend = [...RSSI_CLASSES, NO_RSSI]
+    .map(
+      (c) =>
+        `<tr><td><b>${c.label}</b></td><td>${c.range}</td><td style="background:#${c.color.slice(6, 8)}${c.color.slice(4, 6)}${c.color.slice(2, 4)}">&nbsp;&nbsp;&nbsp;</td></tr>`,
+    )
+    .join("");
+
+  const info = `  <Folder><name>INFORMAÇÕES DO TESTE</name>
+    <Placemark>
+      <name>Resumo do teste</name>
+      <description><![CDATA[<h3>${esc(name)}</h3><table>
+<tr><td><b>Data inicial</b></td><td>${first ? new Date(first.t).toLocaleDateString("pt-BR") : "-"}</td></tr>
+<tr><td><b>Horário inicial</b></td><td>${first ? new Date(first.t).toLocaleTimeString("pt-BR") : "-"}</td></tr>
+<tr><td><b>Horário final</b></td><td>${lastPt ? new Date(lastPt.t).toLocaleTimeString("pt-BR") : "-"}</td></tr>
+<tr><td><b>Total de medições</b></td><td>${pts.length}</td></tr>
+<tr><td><b>RSSI médio</b></td><td>${avg !== null ? `${avg} dBm` : "-"}</td></tr>
+<tr><td><b>RSSI mínimo</b></td><td>${min !== null ? `${min} dBm` : "-"}</td></tr>
+<tr><td><b>RSSI máximo</b></td><td>${max !== null ? `${max} dBm` : "-"}</td></tr>
+<tr><td><b>NEI médio</b></td><td>${neiAvg ?? "-"}</td></tr>
+</table><h4>Pontos por classificação</h4><table>${counts}</table>
+<h4>Legenda RSSI</h4><table>${legend}</table>]]></description>
+      ${first ? `<Point><coordinates>${first.lon.toFixed(6)},${first.lat.toFixed(6)},0</coordinates></Point>` : ""}
+    </Placemark>
+  </Folder>`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
 <Document>
   <name>${esc(name)}</name>
+  <open>1</open>
 ${styles}
-  <Folder><name>Trajeto</name>
-${segments}
-  </Folder>
-  <Folder><name>Pontos de medição</name>
-${points}
+${routeStyle}
+${info}
+${route}
+  <Folder><name>MEDIÇÕES</name><open>1</open>
+${folders}
   </Folder>
 </Document>
 </kml>`;

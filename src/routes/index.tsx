@@ -25,6 +25,7 @@ import {
   bandFor,
   buildCsv,
   buildKml,
+  kmlFilename,
   download,
   haversine,
   shareFiles,
@@ -357,7 +358,7 @@ function DriveTest() {
     const ok = await shareFiles(
       [
         {
-          filename: `tetra-${stamp}.kml`,
+          filename: kmlFilename(),
           content: buildKml(readings),
           mime: "application/vnd.google-earth.kml+xml",
         },
@@ -366,7 +367,7 @@ function DriveTest() {
       text,
     );
     if (!ok) {
-      download(`tetra-${stamp}.kml`, buildKml(readings), "application/vnd.google-earth.kml+xml");
+      download(kmlFilename(), buildKml(readings), "application/vnd.google-earth.kml+xml");
       download(`tetra-${stamp}.csv`, buildCsv(readings), "text/csv");
       toast.info("Arquivos baixados. Anexe-os na conversa do WhatsApp.");
       window.open(whatsappTextUrl(text), "_blank", "noopener");
@@ -608,7 +609,7 @@ function DriveTest() {
             disabled={!readings.length}
             onClick={() =>
               download(
-                `tetra-${stamp}.kml`,
+                kmlFilename(),
                 buildKml(readings),
                 "application/vnd.google-earth.kml+xml",
               )
