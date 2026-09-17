@@ -321,6 +321,7 @@ function DriveTest() {
   useEffect(() => {
     return () => {
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
+      if (timerRef.current !== null) clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
