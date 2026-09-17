@@ -485,6 +485,29 @@ function DriveTest() {
         {/* Controles */}
         <Card className="space-y-3 border-border bg-card p-4">
           <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Registrar por</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={mode === "distance" ? "default" : "outline"}
+                  className="flex-1"
+                  disabled={tracking}
+                  onClick={() => setMode("distance")}
+                >
+                  Distância
+                </Button>
+                <Button
+                  type="button"
+                  variant={mode === "time" ? "default" : "outline"}
+                  className="flex-1"
+                  disabled={tracking}
+                  onClick={() => setMode("time")}
+                >
+                  Tempo
+                </Button>
+              </div>
+            </div>
             <div className="space-y-1">
               <Label htmlFor="step" className="text-xs">
                 Intervalo (metros)
@@ -493,8 +516,22 @@ function DriveTest() {
                 id="step"
                 type="number"
                 inputMode="numeric"
+                disabled={mode !== "distance"}
                 value={stepM}
                 onChange={(e) => setStepM(Math.max(5, Number(e.target.value) || 50))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="steps" className="text-xs">
+                Intervalo (segundos)
+              </Label>
+              <Input
+                id="steps"
+                type="number"
+                inputMode="numeric"
+                disabled={mode !== "time"}
+                value={stepS}
+                onChange={(e) => setStepS(Math.max(1, Number(e.target.value) || 3))}
               />
             </div>
             <div className="space-y-1">
