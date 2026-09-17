@@ -272,6 +272,8 @@ function DriveTest() {
     watchRef.current = navigator.geolocation.watchPosition(
       (p) => {
         setPos(p);
+        posRef.current = p;
+        if (mode === "time") return;
         const last = lastFixRef.current;
         if (!last) {
           void record(p, "auto");
@@ -289,11 +291,29 @@ function DriveTest() {
       },
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 },
     );
-  }, [record, stepM]);
+    if (mode === "time") {
+      timerRef.current = setInterval(
+        () => {
+          const p = posRef.current;
+          if (!p) return;
+          const last = lastFixRef.current;
+          if (last) {
+            setDistance(
+              (x) => x + haversine(last.lat, last.lon, p.coords.latitude, p.coords.longitude),
+            );
+          }
+          void record(p, "auto");
+        },
+        Math.max(1, stepS) * 1000,
+      );
+    }
+  }, [record, stepM, stepS, mode]);
 
   const stop = useCallback(() => {
     if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
     watchRef.current = null;
+    if (timerRef.current !== null) clearInterval(timerRef.current);
+    timerRef.current = null;
     setTracking(false);
     setStatus("Parado");
   }, []);
