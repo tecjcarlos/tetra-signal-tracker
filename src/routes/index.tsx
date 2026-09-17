@@ -72,6 +72,8 @@ function DriveTest() {
   const [tracking, setTracking] = useState(false);
   const [camOn, setCamOn] = useState(false);
   const [stepM, setStepM] = useState(50);
+  const [mode, setMode] = useState<"distance" | "time">("distance");
+  const [stepS, setStepS] = useState(3);
   const [manualRssi, setManualRssi] = useState("");
   const [manualLa, setManualLa] = useState("");
   const [manualNei, setManualNei] = useState("");
