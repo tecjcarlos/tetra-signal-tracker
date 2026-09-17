@@ -64,6 +64,9 @@ function DriveTest() {
   const watchRef = useRef<number | null>(null);
   const lastFixRef = useRef<{ lat: number; lon: number } | null>(null);
   const busyRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const posRef = useRef<GeolocationPosition | null>(null);
+
 
   const [readings, setReadings] = useState<Reading[]>([]);
   const [tracking, setTracking] = useState(false);
