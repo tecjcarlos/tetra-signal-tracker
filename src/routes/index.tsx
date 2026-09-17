@@ -382,7 +382,7 @@ function DriveTest() {
           <div>
             <h1 className="text-lg font-bold tracking-tight">TETRA Drive Test</h1>
             <p className="text-xs text-muted-foreground">
-              Nível de sinal + posição a cada {stepM} m
+              Nível de sinal + posição a cada {mode === "time" ? `${stepS} s` : `${stepM} m`}
             </p>
           </div>
         </div>
